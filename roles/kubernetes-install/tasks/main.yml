@@ -1,0 +1,72 @@
+#######################################################################################################################
+# Installing kubeadm, kubelet and kubectl
+#
+# Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+#
+# kubeadm: the command to bootstrap the cluster.
+# kubelet: the component than runs on all of the machines in your cluster and does things like starting pods
+#          and containers.
+# kubectl: the command line util to talk to your cluster.
+#######################################################################################################################
+---
+- name: Install required packages
+  apt:
+    name={{ item }}
+    state=latest
+    update_cache=yes
+  loop: [ 'apt-transport-https', 'curl' ]
+
+- name: Add Kubernete's official GPG key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: Add Kubernetes' repository
+  apt_repository:
+    repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+    state: present
+
+- name: Install kubelet, kubeadm and kubectl packages
+  apt:
+    name={{ item }}
+    state=latest
+    update_cache=yes
+  loop: [ 'kubelet', 'kubeadm', 'kubectl' ]
+  register: kubernetes_installed
+
+- name: Ensure iptables tooling does not use the nftables backend (1/4)
+  alternatives:
+    name: iptables
+    path: /usr/sbin/iptables-legacy
+  when: kubernetes_installed.changed
+
+- name: Ensure iptables tooling does not use the nftables backend (2/4)
+  alternatives:
+    name: ip6tables
+    path: /usr/sbin/ip6tables-legacy
+  when: kubernetes_installed.changed
+
+- name: Ensure iptables tooling does not use the nftables backend (3/4)
+  alternatives:
+    name: arptables
+    path: /usr/sbin/arptables-legacy
+  ignore_errors: true
+  when: kubernetes_installed.changed
+
+- name: Ensure iptables tooling does not use the nftables backend (4/4)
+  alternatives:
+    name: ebtables
+    path: /usr/sbin/ebtables-legacy
+  ignore_errors: true
+  when: kubernetes_installed.changed
+
+- name: Disabling SWAP (1/2) - Swap off
+  shell: swapoff -a
+  when: kubernetes_installed.changed
+
+- name: Disabling SWAP (2/2) - Avoid to start swap after a system restart
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+    replace: '# \1'
+  when: kubernetes_installed.changed

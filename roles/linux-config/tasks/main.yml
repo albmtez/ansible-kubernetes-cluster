@@ -1,0 +1,63 @@
+#######################################################################################################################
+# Debian system configuration to install a Kubernetes cluster
+#
+# Hostname is configured from hosts file.
+# Entries in /etc/hosts file for each cluster machine.
+# User {{ cluster_user }} creation.
+# ssh keys for {{ cluster_user }} user.
+# Packages update.
+#######################################################################################################################
+---
+- name: Build hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item]['ansible_host'] }} {{item}}"
+    state: present
+  with_items: "{{ groups['all'] }}"
+
+- name: Set hostname
+  hostname: name={{ inventory_hostname }}
+
+- name: Create {{ cluster_user }} user
+  user:
+    name={{ cluster_user }}
+    append=yes
+    state=present
+    createhome=yes
+    shell=/bin/bash
+
+- name: Passwordless for {{ cluster_user }} user
+  lineinfile:
+    dest: /etc/sudoers
+    line: '{{ cluster_user }} ALL=(ALL) NOPASSWD: ALL'
+    validate: 'visudo -cf %s'
+
+- name: ssh authorized keys for {{ cluster_user }} user
+  authorized_key:
+    user={{ cluster_user }}
+    key={{item}}
+  with_file:
+    - '{{ role_path }}/files/id_rsa.pub'
+
+- name: Copy private ssh key
+  copy:
+    src: '{{ role_path }}/files/id_rsa'
+    dest: '/home/{{ cluster_user }}/.ssh/id_rsa'
+    owner: '{{ cluster_user }}'
+    group: '{{ cluster_user }}'
+    mode: '0600'
+
+- name: Install aptitude using apt
+  apt:
+    name=aptitude
+    state=latest
+    update_cache=yes
+    force_apt_get=yes
+
+- name: Packages update
+  apt:
+    upgrade: dist
+    update_cache: yes
+    autoremove: yes
+    autoclean: yes

@@ -1,0 +1,11 @@
+#######################################################################################################################
+# 
+#
+# Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+#######################################################################################################################
+---
+- set_fact:
+    var: "{{ '--option' if defined_master_ip == 'false' else '' }} asd"
+- name: Worker configuration
+  debug:
+    msg: "Configuring worker {{ var }}"

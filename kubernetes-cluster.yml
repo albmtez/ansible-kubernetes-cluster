@@ -1,0 +1,48 @@
+---
+- name: Kubernetes cluster - prepare nodes
+  hosts: all
+  become: yes
+  vars_files:
+    - global-vars.yml
+  roles:
+    - role: linux-config
+      tags: linux-config
+    - role: docker-install
+      tags: docker-install
+    - role: kubernetes-install
+      tags: kubernetes-install
+
+- name: Kubernetes cluster - master configuration
+  hosts: masters
+  become: yes
+  vars:
+    - defined_master_ip: "{{ master_ip | default('false') }}"
+  tags: master-config
+  roles:
+    - role: master-config
+
+- name: Kubernetes cluster - join workers to the cluster
+  hosts: masters
+  become: yes
+  gather_facts: false
+  tags: join-workers
+  tasks:
+    - name: get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command_raw
+
+    - name: set join command
+      set_fact:
+        join_command: "{{ join_command_raw.stdout_lines[0] }}"
+
+- hosts: workers
+  become: yes
+  tags: join-workers
+  tasks:
+    - debug:
+        msg: "{{ hostvars['k8s-master']['join_command'] }}"
+    - name: join cluster
+      shell: "{{ hostvars['k8s-master']['join_command'] }} >> node_joined.txt"
+      args:
+        chdir: $HOME
+        creates: node_joined.txt
